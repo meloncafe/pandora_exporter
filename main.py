@@ -21,28 +21,39 @@ def get_items(header, name, no):
     item_session.cookies.update(cookies)
 
     with item_session:
-        item_response = item_session.get('{}/list.php?id={}'.format(url, no))
-        item_html = item_response.text
-        item_soup = BeautifulSoup(item_html, 'html.parser')
-
         # Create Header
         item_ws = write_wb.create_sheet('{} - {}'.format(header, name))
         item_ws.append(['불변의 유황', '무한의 수은', '영원의 소금', '시도', '제작된 수', '(%)'])
 
         # Find a pagination
         max_page = 0
-        pages = item_soup.findAll('ul', {'class': 'pagination'})
-        for page in pages:
-            page_nums = page.findAll('li')
-            for page_num in page_nums:
-                page_num_href = page_num.find('a')
-                page_num_text = page_num_href.getText()
-                if '...' in page_num_text:
-                    max_page = str(page_num_href['href'])
-                    max_page = int(max_page.split(sep='&')[3].replace('p=', ''))
+
+        def get_pages():
+            for page_i in range(100, 1, -1):
+                item_response = item_session.get('{}/list.php?id={}&p={}'.format(url, no, page_i))
+                item_html = item_response.text
+                item_soup = BeautifulSoup(item_html, 'html.parser')
+
+                _tables = item_soup.findAll('table')
+                for _table in _tables:
+                    _tbody = _table.find('tbody')
+
+                    if len(_tbody.findAll('tr')) > 0:
+                        pages = item_soup.findAll('ul', {'class': 'pagination'})
+                        for page in pages:
+                            page_nums = page.findAll('li')
+                            for page_num in page_nums:
+                                page_num_href = page_num.find('a')
+                                page_num_text = page_num_href.getText()
+
+                                _page = str(page_num_href['href'])
+                                _page = int(_page.split(sep='&')[3].replace('p=', ''))
+                        return _page
+
+        max_page = get_pages()
 
         # All page data
-        for i in range(1, max_page):
+        for i in range(1, max_page + 1):
             page_response = item_session.get('{}/list.php?id={}&p={}'.format(url, no, i))
             page_html = page_response.text
             page_soup = BeautifulSoup(page_html, 'html.parser')
@@ -61,6 +72,8 @@ def get_items(header, name, no):
 
             for _item in items:
                 item_ws.append(_item)
+
+            print('{} - {} - {}/{}'.format(header, name, i, max_page))
 
 
 if __name__ == '__main__':
@@ -99,9 +112,9 @@ if __name__ == '__main__':
 
                     get_items(type_header, item_name, item_number)
 
-                write_wb.save(output_filename)
+        write_wb.save(output_filename)
 
-                wb = load_workbook(output_filename)
-                if 'Sheet' in wb.sheetnames:
-                    wb.remove(wb['Sheet'])
-                wb.save(output_filename)
+        wb = load_workbook(output_filename)
+        if 'Sheet' in wb.sheetnames:
+            wb.remove(wb['Sheet'])
+        wb.save(output_filename)
